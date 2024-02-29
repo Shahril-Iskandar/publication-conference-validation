@@ -4,9 +4,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
 from scipy import signal
-from scipy import interpolate
-from scipy.interpolate import UnivariateSpline
 import copy
+from functions import *
 
 
 # Getting the current working directory
@@ -14,14 +13,6 @@ current_directory = os.getcwd()
 
 # Constructing the relative path to the 'pilot trial data' folder
 folder_path = os.path.join(current_directory, '2023-11-01_pilotTrial')
-
-# Function to get the path to 'Outputs' folder
-def find_folder(root_dir, name:str):
-    for dirpath, dirnames, filenames in os.walk(root_dir):
-        if name in dirnames:
-            outputs_path = os.path.join(dirpath, name)
-            return outputs_path
-    return None
 
 new_sampling_hz = 60
 ########################################## OpenCap ##########################################
@@ -47,21 +38,6 @@ if opencap_markerdata_folder_path is not None:
 else:
     print('MarkerData folder not found')
 
-# # Calculate acceleration
-# dt = opencap_markerdata['time'].diff()
-# opencap_ankle_velocity = opencap_markerdata['r_ankle_study_X27'].diff() / dt
-# opencap_ankle_acceleration = opencap_ankle_velocity.diff() / dt
-
-# Upsample acceleration from 60Hz to 100Hz
-# opencap_ankle_acceleration.fillna(0, inplace=True)
-
-def calculate_new_sample(hz, df, new_sampling_hz):
-    time = (1/hz) * len(df)
-    number = int(new_sampling_hz * time)
-    return number
-# new_number_of_samples = calculate_new_sample(opencap_hz, opencap_ankle_acceleration)
-
-# opencap_ankle_acceleration_resample = signal.resample(opencap_ankle_acceleration, new_number_of_samples)
 
 # Get the path to the 'Outputs' folder
 outputs_folder_path = find_folder(folder_path, 'Outputs')
@@ -77,18 +53,6 @@ for file_name in files_in_outputs:
         file_path = os.path.join(outputs_folder_path, file_name)
         opencapData_angle = pd.read_csv(file_path)
         opencapData_angle = opencapData_angle.drop(opencapData_angle.columns[0], axis=1)
-
-# # Resampling OpenCap
-# # Apply the resampling to each column in the DataFrame and store the results in a list
-# resampled_columns = []
-# for column_name in opencapData_angle.columns:
-#     original = opencapData_angle[column_name]
-#     new_number_of_samples = calculate_new_sample(opencap_hz, original, new_sampling_hz)
-#     resampled = pd.Series(signal.resample(original, new_number_of_samples), name=column_name)
-#     resampled_columns.append(resampled)
-
-# # Concatenate all resampled columns into a new DataFrame
-# opencapData_angle_resampled = pd.concat(resampled_columns, axis=1)
 
 opencapData_angle_resampled = opencapData_angle
 
@@ -382,8 +346,8 @@ error_df = pd.DataFrame({
     'RMSE': rmse_values
 })
 
-print('before correction')
-print(error_df)
+# print('before correction')
+# print(error_df)
 
 # Save the DataFrame to an Excel file with a specific sheet name
 # with pd.ExcelWriter(f'dataframes_resample_{new_sampling_hz}hz.xlsx') as writer:
@@ -393,35 +357,9 @@ print(error_df)
 
 # ########################################## Plotting before correction ##########################################
 # Define the angles and sides
-angles = ['Hip_Flexion', 'Knee_Flexion', 'Ankle_Flexion']
-sides = ['L', 'R']
+plot_all_kinematics('Kinematics Comparison (before offset)', mocapKinematics_updated_resampled, imu_filtered_resampled, opencapData_angle_resampled)
 
-# # Create a 3x2 grid of subplots
-# fig, axs = plt.subplots(3, 2, figsize=(10, 15))
-
-# # Set a title for the entire figure
-# fig.suptitle(f'Kinematic Angles Comparison ({new_sampling_hz}hz)', fontsize=16)
-
-# # Iterate over the sides and angles
-# for i, angle in enumerate(angles):
-#     for j, side in enumerate(sides):
-#         # Create the kinematic angle string
-#         kinematic_angle = f'{side}_{angle}'
-
-#         # Plot the data on the appropriate subplot
-#         axs[i, j].plot(mocapKinematics_updated_resampled[kinematic_angle][:1000])
-#         axs[i, j].plot(imu_filtered_resampled[kinematic_angle][:1000])
-#         axs[i, j].plot(opencapData_angle_resampled[kinematic_angle][:1000])
-#         axs[i, j].legend(['Marker-based', 'IMU', 'OpenCap'])
-#         axs[i, j].set_title(kinematic_angle)
-
-# # Display the plots
-# plt.tight_layout()
-# # Save the figure to a file
-# # plt.savefig(f'Kinematic_angles_comparison_{new_sampling_hz}hz_before correction.png')
-# plt.show()
-
-# ########################################## Do some correction ##########################################
+# ########################################## Do offset correction ##########################################
 # Psuedocode:
 # Based on the first index, check whats the difference between IMU/OpenCap with VICON mocap
 # If it's under VICON mocap, then add the difference to the IMU/OpenCap data for all
@@ -483,8 +421,8 @@ correction_error_df = pd.DataFrame({
     'RMSE': rmse_values
 })
 
-print('after correction')
-print(correction_error_df)
+# print('after correction')
+# print(correction_error_df)
 
 # Save the DataFrame to an Excel file with a specific sheet name
 with pd.ExcelWriter(f'error_metrics_{new_sampling_hz}hz.xlsx') as writer:
@@ -492,35 +430,8 @@ with pd.ExcelWriter(f'error_metrics_{new_sampling_hz}hz.xlsx') as writer:
     correction_error_df.to_excel(writer, sheet_name=f'resample_{new_sampling_hz}hz_after')
 
 # ########################################## Plotting after correction ##########################################
-# Create a 3x2 grid of subplots
-# fig, axs = plt.subplots(3, 2, figsize=(10, 15))
+plot_all_kinematics('Kinematics Comparison (after offset)', mocapKinematics_resampled_correction, imu_filtered_resampled_correction, opencapData_angle_resampled_correction)
 
-# # Set a title for the entire figure
-# fig.suptitle(f'Kinematic Angles Comparison ({new_sampling_hz}hz after correction)', fontsize=16)
-
-# # Iterate over the sides and angles
-# for i, angle in enumerate(angles):
-#     for j, side in enumerate(sides):
-#         # Create the kinematic angle string
-#         kinematic_angle = f'{side}_{angle}'
-
-#         # Plot the data on the appropriate subplot
-#         axs[i, j].plot(mocapKinematics_resampled_correction[kinematic_angle][:1000])
-#         axs[i, j].plot(imu_filtered_resampled_correction[kinematic_angle][:1000])
-#         axs[i, j].plot(opencapData_angle_resampled_correction[kinematic_angle][:1000])
-#         axs[i, j].legend(['VICON', 'IMU', 'OpenCap'])
-#         axs[i, j].set_title(kinematic_angle)
-
-# Display the plots
-# plt.tight_layout()
-# Save the figure to a file
-# plt.savefig(f'Kinematic_angles_comparison_{new_sampling_hz}hz after correction.png')
-# plt.show()
-
-# with pd.ExcelWriter(f'dataframes_resample_{new_sampling_hz}hz_after correction.xlsx') as writer:
-#     mocapKinematics_resampled.to_excel(writer, sheet_name='mocap')
-#     imu_filtered.to_excel(writer, sheet_name='imu')
-#     opencapData_angle_resampled.to_excel(writer, sheet_name='opencap')
 
 # ########################################## Plotting before and after correction ##########################################
 angles = ['Hip_Flexion', 'Knee_Flexion', 'Ankle_Flexion']
@@ -639,47 +550,8 @@ fig.legend((l2, l3, l4), ('Marker-based','IMU',"OpenCap"), loc = 'lower center',
 
 # Display the plots
 plt.tight_layout()
+
 # Save the figure to a file
 # plt.savefig(f'Kinematic_angles_comparison_both.png')
+
 plt.show()
-
-################################################## Function to plot ##################################################
-# import matplotlib.pyplot as plt
-
-# def plot_kinematic_angle(ax, kinematic_angle, mocap_data, imu_data, opencap_data, label):
-#     ax.plot(mocap_data[kinematic_angle][:1000], color='green')
-#     ax.plot(imu_data[kinematic_angle][:1000], alpha=0.7, color='blue')
-#     ax.plot(opencap_data[kinematic_angle][:1000], alpha=0.5, color='red')
-#     ax.set_title(label)
-#     ax.set_xlabel('Frame (n)', fontsize=10)
-#     ax.set_ylabel('Degree (°)', fontsize=10)
-
-# angles = ['Hip_Flexion', 'Knee_Flexion', 'Ankle_Flexion']
-# sides = ['L', 'R']
-
-# fig, axs = plt.subplots(6, 2, figsize=(10, 15))
-
-# # Plot original data
-# for i, side in enumerate(sides):
-#     for j, angle in enumerate(angles):
-#         kinematic_angle = f"{side}_{angle}"
-#         label = f"{side} {angle.replace('_', ' ')}"
-#         plot_kinematic_angle(axs[j + i * len(angles), 0], kinematic_angle,
-#                               mocapKinematics_updated_resampled, imu_filtered_resampled, opencapData_angle_resampled, label)
-
-# # Plot corrected data
-# for i, side in enumerate(sides):
-#     for j, angle in enumerate(angles):
-#         kinematic_angle = f"{side}_{angle}"
-#         label = f"{side} {angle.replace('_', ' ')}"
-#         plot_kinematic_angle(axs[j + i * len(angles), 1], kinematic_angle,
-#                               mocapKinematics_updated_resampled_correction, imu_filtered_resampled_correction,
-#                               opencapData_angle_resampled_correction, label)
-
-# fig.legend(('Marker-based', 'IMU', 'OpenCap'), loc='lower center', bbox_to_anchor=(0.5, -0.02), ncol=3)
-
-# # Display the plots
-# plt.tight_layout()
-# # Save the figure to a file
-# # plt.savefig('Kinematic_angles_comparison_both.png')
-# plt.show()
